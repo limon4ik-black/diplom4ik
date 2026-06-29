@@ -1,0 +1,47 @@
+services:
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.3-alpine
+    container_name: logflow-clickhouse
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    environment:
+      CLICKHOUSE_DB: logs
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8123/ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
+  logflow:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: logflow-server
+    ports:
+      - "8080:8080"
+    environment:
+      CH_ADDR: clickhouse:8123
+      CH_DB: logs
+      CH_USER: default
+      CH_PASSWORD: ""
+      SERVER_PORT: "8080"
+      API_KEY: "dev-secret-key"
+      ARCHIVE_DIR: /archives
+    volumes:
+      - archives:/archives
+      - ./migrations:/app/migrations:ro
+    restart: unless-stopped
+
+volumes:
+  clickhouse_data:
+  archives:
